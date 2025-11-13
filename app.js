@@ -578,39 +578,30 @@ createApp({
                 transactions: data.transactions.length
             });
             
-            // Sauvegarder dans Firebase Realtime Database
-            // Utiliser window.database pour accéder à la variable globale
+            // Sauvegarder UNIQUEMENT dans Firebase Realtime Database
             const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
             console.log('🔍 Vérification de database...', typeof db, db ? 'défini' : 'undefined');
-            if (db) {
-                try {
-                    console.log('📤 Envoi des données vers Firebase Realtime Database...');
-                    await db.ref('moneytrack').set(data);
-                    console.log('✅ Données sauvegardées dans Firebase Realtime Database');
-                    // Sauvegarder aussi dans localStorage comme backup
-                    try {
-                        localStorage.setItem('moneytrack_backup', JSON.stringify(data));
-                        console.log('✅ Backup sauvegardé dans localStorage');
-                    } catch (localError) {
-                        console.warn('⚠️ Erreur lors de la sauvegarde du backup dans localStorage:', localError);
-                    }
-                    return;
-                } catch (e) {
-                    console.error('❌ Erreur Firebase Realtime Database:', e);
-                    console.error('Détails de l\'erreur:', e.message, e.code);
-                    // Continuer vers le fallback localStorage
-                }
-            } else {
-                console.warn('⚠️ database non disponible, utilisation de localStorage uniquement');
+            
+            if (!db) {
+                const errorMsg = '❌ Firebase n\'est pas disponible. Impossible de sauvegarder les données.';
+                console.error(errorMsg);
+                alert(errorMsg);
+                throw new Error('Firebase non disponible');
             }
             
-            // Fallback : Sauvegarder dans localStorage (pas de serveur nécessaire)
             try {
-                localStorage.setItem('moneytrack_backup', JSON.stringify(data));
-                console.log('✅ Données sauvegardées dans localStorage');
+                console.log('📤 Envoi des données vers Firebase Realtime Database...');
+                await db.ref('moneytrack').set(data);
+                console.log('✅ Données sauvegardées dans Firebase Realtime Database');
             } catch (e) {
-                console.error('❌ Erreur lors de la sauvegarde dans localStorage:', e);
-                alert('Erreur lors de la sauvegarde. Vérifiez la console pour plus de détails.');
+                console.error('❌ Erreur Firebase Realtime Database:', e);
+                console.error('Détails de l\'erreur:', e.message, e.code);
+                if (e.code === 'PERMISSION_DENIED' || e.code === 'permission_denied') {
+                    alert('❌ Erreur de permission Firebase. Vérifiez que les règles de sécurité sont correctement configurées dans Firebase Console.');
+                } else {
+                    alert('❌ Erreur lors de la sauvegarde dans Firebase: ' + e.message);
+                }
+                throw e;
             }
         },
         async loadData() {
@@ -619,81 +610,59 @@ createApp({
             let dataLoaded = false;
             
             // Charger UNIQUEMENT depuis Firebase Realtime Database avec synchronisation en temps réel
-            // Utiliser window.database pour accéder à la variable globale
             const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
             
-            if (db) {
-                try {
-                    // Charger les données initiales depuis Firebase
-                    const snapshot = await db.ref('moneytrack').once('value');
-                    if (snapshot.exists()) {
-                        const data = snapshot.val();
-                        console.log('✅ Données chargées depuis Firebase Realtime Database:', {
-                            comptes: data.comptes?.length || 0,
-                            personnes: data.personnes?.length || 0,
-                            transactions: data.transactions?.length || 0
-                        });
-                        this.processLoadedData(data);
-                        dataLoaded = true;
-                        // Sauvegarder aussi dans localStorage comme backup (lecture seule)
-                        localStorage.setItem('moneytrack_backup', JSON.stringify(data));
-                    } else {
-                        console.log('⚠️ Aucune donnée trouvée dans Firebase Realtime Database');
-                        // Si Firebase est vide, essayer de charger depuis window.initialData pour la première fois
-                        if (typeof window.initialData !== 'undefined' && window.initialData) {
-                            console.log('📂 Firebase vide, chargement depuis window.initialData pour la première synchronisation...');
-                            try {
-                                this.processLoadedData(window.initialData);
-                                await this.saveData(); // Sauvegarder dans Firebase
-                                console.log('✅ Données chargées depuis window.initialData et synchronisées vers Firebase');
-                                dataLoaded = true;
-                            } catch (e) {
-                                console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
+            if (!db) {
+                console.error('❌ Firebase n\'est pas disponible. Impossible de charger les données.');
+                alert('❌ Firebase n\'est pas disponible. Vérifiez la configuration.');
+                this.initializeDefaultData();
+                return;
+            }
+            
+            try {
+                // Charger les données initiales depuis Firebase
+                const snapshot = await db.ref('moneytrack').once('value');
+                if (snapshot.exists()) {
+                    const data = snapshot.val();
+                    console.log('✅ Données chargées depuis Firebase Realtime Database:', {
+                        comptes: data.comptes?.length || 0,
+                        personnes: data.personnes?.length || 0,
+                        transactions: data.transactions?.length || 0
+                    });
+                    this.processLoadedData(data);
+                    dataLoaded = true;
+                } else {
+                    console.log('⚠️ Aucune donnée trouvée dans Firebase Realtime Database');
+                    // Si Firebase est vide, essayer de charger depuis window.initialData pour la première fois
+                    if (typeof window.initialData !== 'undefined' && window.initialData) {
+                        console.log('📂 Firebase vide, chargement depuis window.initialData pour la première synchronisation...');
+                        try {
+                            this.processLoadedData(window.initialData);
+                            await this.saveData(); // Sauvegarder dans Firebase
+                            console.log('✅ Données chargées depuis window.initialData et synchronisées vers Firebase');
+                            dataLoaded = true;
+                        } catch (e) {
+                            console.error('❌ Erreur lors de la synchronisation vers Firebase:', e);
+                            if (e.code === 'PERMISSION_DENIED' || e.code === 'permission_denied') {
+                                alert('❌ Erreur de permission Firebase. Vérifiez que les règles de sécurité sont correctement configurées dans Firebase Console.');
                             }
                         }
                     }
-                    
-                    // Écouter les changements en temps réel depuis Firebase
-                    db.ref('moneytrack').on('value', (snapshot) => {
-                        if (snapshot.exists()) {
-                            const data = snapshot.val();
-                            console.log('🔄 Données mises à jour en temps réel depuis Firebase Realtime Database');
-                            this.processLoadedData(data);
-                            // Sauvegarder aussi dans localStorage comme backup (lecture seule)
-                            localStorage.setItem('moneytrack_backup', JSON.stringify(data));
-                        }
-                    });
-                } catch (e) {
-                    console.error('❌ Erreur Firebase Realtime Database:', e);
-                    console.error('Détails:', e.message, e.code);
                 }
-            } else {
-                console.warn('⚠️ Firebase non disponible, utilisation du fallback localStorage');
-                // Fallback uniquement si Firebase n'est PAS disponible
-                try {
-                    const backupData = localStorage.getItem('moneytrack_backup');
-                    if (backupData) {
-                        const data = JSON.parse(backupData);
-                        console.log('✅ Données chargées depuis localStorage (Firebase non disponible):', {
-                            comptes: data.comptes?.length || 0,
-                            personnes: data.personnes?.length || 0,
-                            transactions: data.transactions?.length || 0
-                        });
+                
+                // Écouter les changements en temps réel depuis Firebase
+                db.ref('moneytrack').on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        const data = snapshot.val();
+                        console.log('🔄 Données mises à jour en temps réel depuis Firebase Realtime Database');
                         this.processLoadedData(data);
-                        dataLoaded = true;
-                    } else if (typeof window.initialData !== 'undefined' && window.initialData) {
-                        console.log('📂 Chargement depuis window.initialData (Firebase non disponible)...');
-                        try {
-                            this.processLoadedData(window.initialData);
-                            localStorage.setItem('moneytrack_backup', JSON.stringify(window.initialData));
-                            console.log('✅ Données chargées depuis window.initialData');
-                            dataLoaded = true;
-                        } catch (e) {
-                            console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
-                        }
                     }
-                } catch (e) {
-                    console.error('❌ Erreur lors du chargement depuis localStorage:', e);
+                });
+            } catch (e) {
+                console.error('❌ Erreur Firebase Realtime Database:', e);
+                console.error('Détails:', e.message, e.code);
+                if (e.code === 'PERMISSION_DENIED' || e.code === 'permission_denied') {
+                    alert('❌ Erreur de permission Firebase. Vérifiez que les règles de sécurité sont correctement configurées dans Firebase Console.\n\nLes règles doivent permettre la lecture et l\'écriture sur /moneytrack');
                 }
             }
             

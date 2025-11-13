@@ -1,0 +1,27 @@
+{
+  "database": {
+    "rules": "database.rules.json"
+  },
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**",
+      "server.js",
+      "start-server.bat",
+      "start-server.sh",
+      "moneyTrackData.json",
+      ".firebaserc",
+      "FIREBASE_DEPLOY.md",
+      "DEPLOY_FIREBASE_RULES.md"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}
+
