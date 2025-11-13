@@ -669,7 +669,22 @@ createApp({
             // Si aucune donnée n'a été trouvée, initialiser avec des données par défaut
             if (!dataLoaded) {
                 console.log('⚠️ Aucune donnée trouvée, initialisation avec des données par défaut');
-                this.initializeDefaultData();
+                console.log('💡 Pour charger vos données existantes, utilisez le bouton "📤 Importer JSON" en haut à droite');
+                // Essayer de charger depuis window.initialData si disponible (inclus dans le HTML)
+                if (typeof window.initialData !== 'undefined' && window.initialData) {
+                    console.log('📂 Tentative de chargement depuis window.initialData...');
+                    try {
+                        this.processLoadedData(window.initialData);
+                        await this.saveData();
+                        console.log('✅ Données chargées depuis window.initialData');
+                        dataLoaded = true;
+                    } catch (e) {
+                        console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
+                    }
+                }
+                if (!dataLoaded) {
+                    this.initializeDefaultData();
+                }
             }
         },
         processLoadedData(data) {
