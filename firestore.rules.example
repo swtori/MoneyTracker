@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permettre la lecture et l'écriture à tous
+    // ⚠️ Pour la production, ajoutez l'authentification Firebase
+    match /data/{document} {
+      allow read, write: if true;
+    }
+  }
+}
+

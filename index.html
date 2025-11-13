@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoneyTrack - Gestion de Finances Personnelles</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Firebase SDK - Realtime Database -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>💰 MoneyTrack</h1>
+            <div class="header-actions">
+                <button @click="exportData" class="btn btn-secondary">📥 Exporter JSON</button>
+                <label for="file-input" class="btn btn-secondary">📤 Importer JSON
+                    <input type="file" id="file-input" accept=".json" @change="importData" style="display: none;">
+                </label>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <!-- Solde total -->
+            <div class="summary-card">
+                <h2>Solde Total</h2>
+                <p class="total-balance" :class="{ negative: totalSolde < 0 }">
+                    {{ formatCurrency(totalSolde) }}
+                </p>
+            </div>
+
+            <!-- Navigation par onglets -->
+            <div class="tabs">
+                <button 
+                    v-for="tab in tabs" 
+                    :key="tab.id"
+                    @click="activeTab = tab.id"
+                    :class="['tab', { active: activeTab === tab.id }]">
+                    {{ tab.label }}
+                </button>
+            </div>
+
+            <!-- Section Comptes -->
+            <section v-show="activeTab === 'comptes'" class="section">
+                <div class="section-header">
+                    <h2>Mes Comptes</h2>
+                    <button @click="showAddAccountModal = true" class="btn btn-primary">+ Ajouter un compte</button>
+                </div>
+
+                <div class="accounts-grid">
+                    <div v-for="compte in comptes" :key="compte.id" class="account-card">
+                        <div class="account-header">
+                            <h3>{{ compte.nom }}</h3>
+                            <div class="account-actions">
+                                <button @click="editAccount(compte)" class="btn-icon">✏️</button>
+                                <button @click="deleteAccount(compte.id)" class="btn-icon">🗑️</button>
+                            </div>
+                        </div>
+                        <p class="account-type">{{ getAccountTypeLabel(compte.type) }}</p>
+                        <p class="account-balance" :class="{ negative: compte.solde < 0 }">
+                            {{ formatCurrency(compte.solde) }}
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Transactions -->
+            <section v-show="activeTab === 'transactions'" class="section">
+                <div class="section-header">
+                    <h2>Transactions</h2>
+                    <button @click="openTransactionModal" class="btn btn-primary">+ Ajouter une transaction</button>
+                </div>
+
+                <!-- Filtres -->
+                <div class="filters">
+                    <select v-model="filterCategorie" @change="filterTransactions">
+                        <option value="">Toutes les catégories</option>
+                        <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+                    </select>
+                    <select v-model="filterType" @change="filterTransactions">
+                        <option value="">Tous les types</option>
+                        <option value="revenu">Revenu</option>
+                        <option value="dépense">Dépense</option>
+                        <option value="transfert">Transfert</option>
+                        <option value="remboursement">Remboursement</option>
+                    </select>
+                    <input type="month" v-model="filterMonth" @change="filterTransactions" class="input">
+                </div>
+
+                <!-- Tableau des transactions -->
+                <div class="transactions-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Type</th>
+                                <th>Catégorie</th>
+                                <th>Montant</th>
+                                <th>Compte</th>
+                                <th>Personne</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="transaction in filteredTransactions" :key="transaction.id" :class="{ 'transaction-rembourse': transaction.rembourse, 'transaction-valide': transaction.valide }">
+                                <td>{{ formatDate(transaction.date) }}</td>
+                                <td>
+                                    <span v-if="transaction.valide">🔒</span>
+                                    <span v-else>🔓</span>
+                                    {{ transaction.description }}
+                                </td>
+                                <td><span :class="['badge', `badge-${transaction.type}`]">{{ transaction.type }}</span></td>
+                                <td>{{ transaction.categorie }}</td>
+                                <td :class="{ negative: transaction.type === 'dépense', positive: transaction.type === 'revenu' }">
+                                    {{ formatCurrency(transaction.montant) }}
+                                </td>
+                                <td>{{ getAccountName(transaction.source) }}</td>
+                                <td>{{ transaction.personne ? getPersonName(transaction.personne) : '-' }}</td>
+                                <td>
+                                    <template v-if="transaction.dettePersonne">
+                                        <div class="btn-toggle-container">
+                                            <button 
+                                                v-show="transaction.rembourse"
+                                                @click="setRembourse(transaction, false)" 
+                                                class="btn-icon btn-toggle" 
+                                                title="Elle m'a remboursé (cliquer pour changer)">
+                                                ✅
+                                            </button>
+                                            <button 
+                                                v-show="!transaction.rembourse"
+                                                @click="setRembourse(transaction, true)" 
+                                                class="btn-icon btn-toggle" 
+                                                title="Elle ne m'a pas remboursé (cliquer pour changer)">
+                                                ❌
+                                            </button>
+                                        </div>
+                                        <button 
+                                            @click="removeDebtFromTransaction(transaction)" 
+                                            class="btn-icon" 
+                                            title="Retirer la dette">
+                                            🚫
+                                        </button>
+                                    </template>
+                                    <button 
+                                        v-else
+                                        @click="openAddDebtModal(transaction)" 
+                                        class="btn-icon" 
+                                        title="Ajouter une dette">
+                                        💰
+                                    </button>
+                                    <button 
+                                        @click="toggleValidation(transaction)" 
+                                        class="btn-icon btn-lock" 
+                                        :class="{ 'btn-lock-active': transaction.valide, 'btn-lock-clicked': transaction._justClicked }"
+                                        :title="transaction.valide ? 'Je suis sûr de cette transaction' : 'Je suis pas sûr de cette transaction'">
+                                        {{ transaction.valide ? '🔒' : '🔓' }}
+                                    </button>
+                                    <button @click="editTransaction(transaction)" class="btn-icon">✏️</button>
+                                    <button @click="deleteTransaction(transaction.id)" class="btn-icon">🗑️</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Statistiques -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>Total Revenus</h3>
+                        <p class="positive">{{ formatCurrency(totalRevenus) }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Dépenses</h3>
+                        <p class="negative">{{ formatCurrency(totalDepenses) }}</p>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Bilan Mensuel</h3>
+                        <p :class="bilanMensuel >= 0 ? 'positive' : 'negative'">{{ formatCurrency(bilanMensuel) }}</p>
+                    </div>
+                </div>
+
+                <!-- Graphique par catégorie -->
+                <div class="category-chart">
+                    <h3>Dépenses par Catégorie</h3>
+                    <div v-for="(amount, category) in depensesParCategorie" :key="category" class="chart-bar">
+                        <div class="chart-label">{{ category }}</div>
+                        <div class="chart-bar-container">
+                            <div class="chart-bar-fill" :style="{ width: (amount / maxDepenseCategorie * 100) + '%' }"></div>
+                            <span class="chart-value">{{ formatCurrency(amount) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Dettes -->
+            <section v-show="activeTab === 'dettes'" class="section">
+                <div class="section-header">
+                    <h2>Gestion des Dettes</h2>
+                    <button @click="showAddPersonModal = true" class="btn btn-primary">+ Ajouter une personne</button>
+                </div>
+
+                <div class="debts-grid">
+                    <div v-for="personne in personnes" :key="personne.id" class="debt-card">
+                        <div class="debt-header">
+                            <h3>{{ personne.nom }}</h3>
+                            <div class="account-actions">
+                                <button @click="editPerson(personne)" class="btn-icon">✏️</button>
+                                <button @click="deletePerson(personne.id)" class="btn-icon">🗑️</button>
+                            </div>
+                        </div>
+                        <p class="debt-balance" :class="getDebtBalance(personne.id) >= 0 ? 'positive' : 'negative'">
+                            {{ formatCurrency(Math.abs(getDebtBalance(personne.id))) }}
+                        </p>
+                        <p class="debt-status">
+                            <span v-if="getDebtBalance(personne.id) > 0">💚 {{ personne.nom }} te doit</span>
+                            <span v-else-if="getDebtBalance(personne.id) < 0">🔴 Tu dois à {{ personne.nom }}</span>
+                            <span v-else>✅ Quitte</span>
+                        </p>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Modal Ajouter/Modifier Compte -->
+        <div v-if="showAddAccountModal || editingAccount" class="modal-overlay" @mousedown="handleAccountModalOverlayMouseDown" @mouseup="handleAccountModalOverlayMouseUp">
+            <div class="modal" @mousedown.stop @mouseup.stop>
+                <h2>{{ editingAccount ? 'Modifier le compte' : 'Ajouter un compte' }}</h2>
+                <form @submit.prevent="saveAccount">
+                    <div class="form-group">
+                        <label>Nom du compte</label>
+                        <input type="text" v-model="accountForm.nom" required class="input">
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select v-model="accountForm.type" required class="input">
+                            <option value="banque">Banque</option>
+                            <option value="paypal">PayPal</option>
+                            <option value="revolut">Revolut</option>
+                            <option value="especes">Espèces</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Solde initial</label>
+                        <input type="number" step="0.01" v-model.number="accountForm.solde" required class="input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" @click="closeAccountModal" class="btn btn-secondary">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Ajouter/Modifier Transaction -->
+        <div v-if="showAddTransactionModal || editingTransaction" class="modal-overlay" @mousedown="handleTransactionModalOverlayMouseDown" @mouseup="handleTransactionModalOverlayMouseUp">
+            <div class="modal" @mousedown.stop @mouseup.stop>
+                <h2>{{ editingTransaction ? 'Modifier la transaction' : 'Ajouter une transaction' }}</h2>
+                <form @submit.prevent="saveTransaction">
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" v-model="transactionForm.date" required class="input">
+                    </div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select v-model="transactionForm.type" required class="input" @change="updateTransactionForm">
+                            <option value="revenu">Revenu</option>
+                            <option value="dépense">Dépense</option>
+                            <option value="transfert">Transfert</option>
+                            <option value="remboursement">Remboursement</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Montant</label>
+                        <input type="number" step="0.01" v-model.number="transactionForm.montant" required class="input">
+                    </div>
+                    <div class="form-group">
+                        <label>Compte source</label>
+                        <select v-model.number="transactionForm.source" required class="input">
+                            <option v-for="compte in comptes" :key="compte.id" :value="compte.id">{{ compte.nom }}</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-if="transactionForm.type === 'transfert'">
+                        <label>Compte destination</label>
+                        <select v-model.number="transactionForm.destination" class="input">
+                            <option value="0">-</option>
+                            <option v-for="compte in comptes" :key="compte.id" :value="compte.id">{{ compte.nom }}</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-else>
+                        <label>Personne (optionnel)</label>
+                        <select v-model.number="transactionForm.personne" class="input">
+                            <option value="0">-</option>
+                            <option v-for="personne in personnes" :key="personne.id" :value="personne.id">{{ personne.nom }}</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Catégorie</label>
+                        <input type="text" v-model="transactionForm.categorie" required class="input" list="categories-list">
+                        <datalist id="categories-list">
+                            <option v-for="cat in categories" :key="cat" :value="cat"></option>
+                        </datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <input type="text" v-model="transactionForm.description" required class="input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" @click="closeTransactionModal" class="btn btn-secondary">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Ajouter/Modifier Personne -->
+        <div v-if="showAddPersonModal || editingPerson" class="modal-overlay" @mousedown="handlePersonModalOverlayMouseDown" @mouseup="handlePersonModalOverlayMouseUp">
+            <div class="modal" @mousedown.stop @mouseup.stop>
+                <h2>{{ editingPerson ? 'Modifier la personne' : 'Ajouter une personne' }}</h2>
+                <form @submit.prevent="savePerson">
+                    <div class="form-group">
+                        <label>Nom</label>
+                        <input type="text" v-model="personForm.nom" required class="input">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" @click="closePersonModal" class="btn btn-secondary">Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal Ajouter une dette -->
+        <div v-if="showAddDebtModal" class="modal-overlay" @mousedown="handleDebtModalOverlayMouseDown" @mouseup="handleDebtModalOverlayMouseUp">
+            <div class="modal" @mousedown.stop @mouseup.stop>
+                <h2>Ajouter une dette</h2>
+                <p v-if="transactionForDebt" class="debt-info">
+                    Transaction : {{ transactionForDebt.description }} - {{ formatCurrency(transactionForDebt.montant) }}
+                </p>
+                <div class="form-group">
+                    <label>Qui vous doit cette dette ?</label>
+                    <div class="person-list">
+                        <button 
+                            v-for="personne in personnes" 
+                            :key="personne.id"
+                            @click="addDebtToTransaction(personne.id)"
+                            class="btn btn-person"
+                            :class="{ 'btn-person-selected': lastDebtPerson === personne.id }">
+                            {{ personne.nom }}
+                            <span v-if="lastDebtPerson === personne.id" class="last-selected">(dernière sélection)</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" @click="closeAddDebtModal" class="btn btn-secondary">Annuler</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

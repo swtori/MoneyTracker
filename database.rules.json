@@ -1,0 +1,9 @@
+{
+  "rules": {
+    "moneytrack": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}
+

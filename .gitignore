@@ -1,0 +1,15 @@
+# Firebase
+.firebaserc
+firebase-config.js
+
+# Node
+node_modules/
+package-lock.json
+
+# Données locales
+moneyTrackData.json
+
+# OS
+.DS_Store
+Thumbs.db
+
