@@ -19,7 +19,7 @@ const firebaseConfig = {
 // Initialiser Firebase
 firebase.initializeApp(firebaseConfig);
 
-// Initialiser Realtime Database (utiliser var pour éviter le conflit avec la déclaration dans index.html)
+// Initialiser Realtime Database
 var database = firebase.database();
 // S'assurer que database est aussi accessible via window
 if (typeof window !== 'undefined') {

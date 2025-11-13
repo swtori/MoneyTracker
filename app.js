@@ -618,12 +618,13 @@ createApp({
             
             let dataLoaded = false;
             
-            // Charger depuis Firebase Realtime Database avec synchronisation en temps réel
+            // Charger UNIQUEMENT depuis Firebase Realtime Database avec synchronisation en temps réel
             // Utiliser window.database pour accéder à la variable globale
             const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+            
             if (db) {
                 try {
-                    // Charger les données initiales
+                    // Charger les données initiales depuis Firebase
                     const snapshot = await db.ref('moneytrack').once('value');
                     if (snapshot.exists()) {
                         const data = snapshot.val();
@@ -634,79 +635,72 @@ createApp({
                         });
                         this.processLoadedData(data);
                         dataLoaded = true;
-                        // Sauvegarder aussi dans localStorage comme backup
+                        // Sauvegarder aussi dans localStorage comme backup (lecture seule)
                         localStorage.setItem('moneytrack_backup', JSON.stringify(data));
                     } else {
-                        console.log('⚠️ Aucune donnée trouvée dans Firebase Realtime Database, tentative de chargement depuis localStorage...');
+                        console.log('⚠️ Aucune donnée trouvée dans Firebase Realtime Database');
+                        // Si Firebase est vide, essayer de charger depuis window.initialData pour la première fois
+                        if (typeof window.initialData !== 'undefined' && window.initialData) {
+                            console.log('📂 Firebase vide, chargement depuis window.initialData pour la première synchronisation...');
+                            try {
+                                this.processLoadedData(window.initialData);
+                                await this.saveData(); // Sauvegarder dans Firebase
+                                console.log('✅ Données chargées depuis window.initialData et synchronisées vers Firebase');
+                                dataLoaded = true;
+                            } catch (e) {
+                                console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
+                            }
+                        }
                     }
                     
-                    // Écouter les changements en temps réel
+                    // Écouter les changements en temps réel depuis Firebase
                     db.ref('moneytrack').on('value', (snapshot) => {
                         if (snapshot.exists()) {
                             const data = snapshot.val();
                             console.log('🔄 Données mises à jour en temps réel depuis Firebase Realtime Database');
                             this.processLoadedData(data);
-                            // Sauvegarder aussi dans localStorage comme backup
+                            // Sauvegarder aussi dans localStorage comme backup (lecture seule)
                             localStorage.setItem('moneytrack_backup', JSON.stringify(data));
                         }
                     });
                 } catch (e) {
                     console.error('❌ Erreur Firebase Realtime Database:', e);
-                    // Continuer vers le fallback localStorage
+                    console.error('Détails:', e.message, e.code);
                 }
-            }
-            
-            // Si les données n'ont pas été chargées depuis Firebase, essayer localStorage
-            if (!dataLoaded) {
+            } else {
+                console.warn('⚠️ Firebase non disponible, utilisation du fallback localStorage');
+                // Fallback uniquement si Firebase n'est PAS disponible
                 try {
                     const backupData = localStorage.getItem('moneytrack_backup');
                     if (backupData) {
                         const data = JSON.parse(backupData);
-                        console.log('✅ Données chargées depuis localStorage:', {
+                        console.log('✅ Données chargées depuis localStorage (Firebase non disponible):', {
                             comptes: data.comptes?.length || 0,
                             personnes: data.personnes?.length || 0,
                             transactions: data.transactions?.length || 0
                         });
                         this.processLoadedData(data);
-                        // Si Firebase est disponible, synchroniser les données locales vers Firebase
-                        const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
-                        if (db) {
-                            console.log('💾 Synchronisation des données locales vers Firebase...');
-                            await this.saveData();
-                        }
                         dataLoaded = true;
+                    } else if (typeof window.initialData !== 'undefined' && window.initialData) {
+                        console.log('📂 Chargement depuis window.initialData (Firebase non disponible)...');
+                        try {
+                            this.processLoadedData(window.initialData);
+                            localStorage.setItem('moneytrack_backup', JSON.stringify(window.initialData));
+                            console.log('✅ Données chargées depuis window.initialData');
+                            dataLoaded = true;
+                        } catch (e) {
+                            console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
+                        }
                     }
                 } catch (e) {
                     console.error('❌ Erreur lors du chargement depuis localStorage:', e);
                 }
             }
             
-            // Si aucune donnée n'a été trouvée, essayer window.initialData puis initialiser avec des données par défaut
+            // Si aucune donnée n'a été trouvée, initialiser avec des données par défaut
             if (!dataLoaded) {
-                console.log('⚠️ Aucune donnée trouvée dans Firebase ou localStorage');
-                // Essayer de charger depuis window.initialData si disponible (inclus dans le HTML)
-                console.log('🔍 Vérification de window.initialData...', typeof window.initialData, window.initialData ? 'défini' : 'undefined');
-                if (typeof window.initialData !== 'undefined' && window.initialData) {
-                    console.log('📂 Tentative de chargement depuis window.initialData...', {
-                        comptes: window.initialData.comptes?.length || 0,
-                        personnes: window.initialData.personnes?.length || 0,
-                        transactions: window.initialData.transactions?.length || 0
-                    });
-                    try {
-                        this.processLoadedData(window.initialData);
-                        await this.saveData();
-                        console.log('✅ Données chargées depuis window.initialData');
-                        dataLoaded = true;
-                    } catch (e) {
-                        console.error('❌ Erreur lors du chargement depuis window.initialData:', e);
-                    }
-                } else {
-                    console.log('💡 window.initialData non disponible. Utilisez le bouton "📤 Importer JSON" pour charger vos données.');
-                }
-                if (!dataLoaded) {
-                    console.log('⚠️ Initialisation avec des données par défaut');
-                    this.initializeDefaultData();
-                }
+                console.log('⚠️ Aucune donnée trouvée, initialisation avec des données par défaut');
+                this.initializeDefaultData();
             }
         },
         processLoadedData(data) {
