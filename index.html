@@ -367,7 +367,23 @@
     </div>
 
     <!-- Script pour charger les données initiales depuis data-loader.js si disponible -->
-    <script src="data-loader.js" onerror="console.log('💡 data-loader.js non trouvé. Utilisez le bouton \"📤 Importer JSON\" pour charger vos données.');"></script>
+    <script>
+        // Vérifier si data-loader.js est chargé
+        console.log('🔍 Vérification du chargement de data-loader.js...');
+    </script>
+    <script src="data-loader.js" onerror="console.error('❌ Erreur lors du chargement de data-loader.js');"></script>
+    <script>
+        // Vérifier après le chargement
+        if (typeof window.initialData !== 'undefined') {
+            console.log('✅ data-loader.js chargé avec succès:', {
+                comptes: window.initialData.comptes?.length || 0,
+                personnes: window.initialData.personnes?.length || 0,
+                transactions: window.initialData.transactions?.length || 0
+            });
+        } else {
+            console.warn('⚠️ window.initialData non défini après le chargement de data-loader.js');
+        }
+    </script>
     <script src="app.js"></script>
 </body>
 </html>
