@@ -666,13 +666,17 @@ createApp({
                 }
             }
             
-            // Si aucune donnée n'a été trouvée, initialiser avec des données par défaut
+            // Si aucune donnée n'a été trouvée, essayer window.initialData puis initialiser avec des données par défaut
             if (!dataLoaded) {
                 console.log('⚠️ Aucune donnée trouvée dans Firebase ou localStorage');
                 // Essayer de charger depuis window.initialData si disponible (inclus dans le HTML)
-                console.log('🔍 Vérification de window.initialData...', typeof window.initialData);
+                console.log('🔍 Vérification de window.initialData...', typeof window.initialData, window.initialData ? 'défini' : 'undefined');
                 if (typeof window.initialData !== 'undefined' && window.initialData) {
-                    console.log('📂 Tentative de chargement depuis window.initialData...');
+                    console.log('📂 Tentative de chargement depuis window.initialData...', {
+                        comptes: window.initialData.comptes?.length || 0,
+                        personnes: window.initialData.personnes?.length || 0,
+                        transactions: window.initialData.transactions?.length || 0
+                    });
                     try {
                         this.processLoadedData(window.initialData);
                         await this.saveData();
@@ -685,6 +689,7 @@ createApp({
                     console.log('💡 window.initialData non disponible. Utilisez le bouton "📤 Importer JSON" pour charger vos données.');
                 }
                 if (!dataLoaded) {
+                    console.log('⚠️ Initialisation avec des données par défaut');
                     this.initializeDefaultData();
                 }
             }
