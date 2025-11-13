@@ -579,17 +579,29 @@ createApp({
             });
             
             // Sauvegarder dans Firebase Realtime Database
-            if (typeof database !== 'undefined') {
+            // Utiliser window.database pour accéder à la variable globale
+            const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+            console.log('🔍 Vérification de database...', typeof db, db ? 'défini' : 'undefined');
+            if (db) {
                 try {
-                    await database.ref('moneytrack').set(data);
+                    console.log('📤 Envoi des données vers Firebase Realtime Database...');
+                    await db.ref('moneytrack').set(data);
                     console.log('✅ Données sauvegardées dans Firebase Realtime Database');
                     // Sauvegarder aussi dans localStorage comme backup
-                    localStorage.setItem('moneytrack_backup', JSON.stringify(data));
+                    try {
+                        localStorage.setItem('moneytrack_backup', JSON.stringify(data));
+                        console.log('✅ Backup sauvegardé dans localStorage');
+                    } catch (localError) {
+                        console.warn('⚠️ Erreur lors de la sauvegarde du backup dans localStorage:', localError);
+                    }
                     return;
                 } catch (e) {
                     console.error('❌ Erreur Firebase Realtime Database:', e);
+                    console.error('Détails de l\'erreur:', e.message, e.code);
                     // Continuer vers le fallback localStorage
                 }
+            } else {
+                console.warn('⚠️ database non disponible, utilisation de localStorage uniquement');
             }
             
             // Fallback : Sauvegarder dans localStorage (pas de serveur nécessaire)
@@ -607,10 +619,12 @@ createApp({
             let dataLoaded = false;
             
             // Charger depuis Firebase Realtime Database avec synchronisation en temps réel
-            if (typeof database !== 'undefined') {
+            // Utiliser window.database pour accéder à la variable globale
+            const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+            if (db) {
                 try {
                     // Charger les données initiales
-                    const snapshot = await database.ref('moneytrack').once('value');
+                    const snapshot = await db.ref('moneytrack').once('value');
                     if (snapshot.exists()) {
                         const data = snapshot.val();
                         console.log('✅ Données chargées depuis Firebase Realtime Database:', {
@@ -627,7 +641,7 @@ createApp({
                     }
                     
                     // Écouter les changements en temps réel
-                    database.ref('moneytrack').on('value', (snapshot) => {
+                    db.ref('moneytrack').on('value', (snapshot) => {
                         if (snapshot.exists()) {
                             const data = snapshot.val();
                             console.log('🔄 Données mises à jour en temps réel depuis Firebase Realtime Database');
@@ -655,7 +669,8 @@ createApp({
                         });
                         this.processLoadedData(data);
                         // Si Firebase est disponible, synchroniser les données locales vers Firebase
-                        if (typeof database !== 'undefined') {
+                        const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+                        if (db) {
                             console.log('💾 Synchronisation des données locales vers Firebase...');
                             await this.saveData();
                         }
