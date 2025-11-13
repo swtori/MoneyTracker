@@ -8,7 +8,11 @@
     <!-- Firebase SDK - Realtime Database -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="firebase-config.js"></script>
+    <script>
+        // Initialiser database comme undefined par défaut (sera défini par firebase-config.js si disponible)
+        var database;
+    </script>
+    <script src="firebase-config.js" onerror="console.warn('⚠️ firebase-config.js non trouvé, Firebase ne sera pas disponible. Les données seront sauvegardées dans localStorage.');"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body>
