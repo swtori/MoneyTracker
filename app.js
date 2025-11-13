@@ -633,21 +633,7 @@ createApp({
                     dataLoaded = true;
                 } else {
                     console.log('⚠️ Aucune donnée trouvée dans Firebase Realtime Database');
-                    // Si Firebase est vide, essayer de charger depuis window.initialData pour la première fois
-                    if (typeof window.initialData !== 'undefined' && window.initialData) {
-                        console.log('📂 Firebase vide, chargement depuis window.initialData pour la première synchronisation...');
-                        try {
-                            this.processLoadedData(window.initialData);
-                            await this.saveData(); // Sauvegarder dans Firebase
-                            console.log('✅ Données chargées depuis window.initialData et synchronisées vers Firebase');
-                            dataLoaded = true;
-                        } catch (e) {
-                            console.error('❌ Erreur lors de la synchronisation vers Firebase:', e);
-                            if (e.code === 'PERMISSION_DENIED' || e.code === 'permission_denied') {
-                                alert('❌ Erreur de permission Firebase. Vérifiez que les règles de sécurité sont correctement configurées dans Firebase Console.');
-                            }
-                        }
-                    }
+                    console.log('💡 Utilisez le bouton "📤 Importer JSON" pour charger vos données initiales dans Firebase');
                 }
                 
                 // Écouter les changements en temps réel depuis Firebase
