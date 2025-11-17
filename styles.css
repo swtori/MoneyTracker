@@ -8,8 +8,20 @@ body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
-    padding: 20px;
+    padding: 0;
     color: #333;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+#app {
+    min-height: 100vh;
+    position: relative;
+}
+
+/* Masquer le contenu non compilé par Vue */
+[v-cloak] {
+    display: block !important;
 }
 
 header {
@@ -17,6 +29,7 @@ header {
     padding: 20px 30px;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    margin: 20px;
     margin-bottom: 20px;
     display: flex;
     justify-content: space-between;
@@ -36,6 +49,7 @@ header h1 {
 .dashboard {
     max-width: 1400px;
     margin: 0 auto;
+    padding: 0 20px 20px 20px;
 }
 
 .summary-card {
@@ -609,11 +623,17 @@ tbody tr.transaction-valide:hover {
 
 /* Styles pour l'écran de connexion */
 .login-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
     padding: 20px;
+    z-index: 9999;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .login-container {
