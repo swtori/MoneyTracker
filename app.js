@@ -16,6 +16,7 @@ createApp({
             comptes: [],
             personnes: [],
             transactions: [],
+            storedPassword: 'YSO2vPKTxsiPlGcD', // Mot de passe par défaut
             showAddAccountModal: false,
             showAddTransactionModal: false,
             showAddPersonModal: false,
@@ -108,12 +109,16 @@ createApp({
             }
 
             try {
-                // Vérifier si le mot de passe existe dans Firebase
-                const snapshot = await db.ref('password').once('value');
-                if (!snapshot.exists()) {
-                    // Initialiser le mot de passe dans Firebase
+                // Charger le mot de passe depuis Firebase au nœud moneytrack/password
+                const snapshot = await db.ref('moneytrack/password').once('value');
+                if (snapshot.exists()) {
+                    this.storedPassword = snapshot.val();
+                    console.log('✅ Mot de passe chargé depuis Firebase');
+                } else {
+                    // Si le mot de passe n'existe pas, l'initialiser avec la valeur par défaut
                     const defaultPassword = 'YSO2vPKTxsiPlGcD';
-                    await db.ref('password').set(defaultPassword);
+                    await db.ref('moneytrack/password').set(defaultPassword);
+                    this.storedPassword = defaultPassword;
                     console.log('✅ Mot de passe initialisé dans Firebase');
                 }
             } catch (e) {
@@ -132,26 +137,45 @@ createApp({
             }
 
             try {
-                const snapshot = await db.ref('password').once('value');
-                const storedPassword = snapshot.val();
+                // Charger le mot de passe depuis Firebase si pas encore chargé
+                let passwordToCheck = this.storedPassword;
+                if (!passwordToCheck) {
+                    const snapshot = await db.ref('moneytrack/password').once('value');
+                    if (snapshot.exists()) {
+                        passwordToCheck = snapshot.val();
+                        this.storedPassword = passwordToCheck;
+                    } else {
+                        // Utiliser le mot de passe par défaut
+                        passwordToCheck = 'YSO2vPKTxsiPlGcD';
+                        this.storedPassword = passwordToCheck;
+                    }
+                }
 
-                if (this.passwordInput === storedPassword) {
+                // Vérifier le mot de passe
+                if (this.passwordInput === passwordToCheck) {
                     this.isAuthenticated = true;
                     this.passwordInput = '';
                     // Stocker l'authentification dans sessionStorage
                     sessionStorage.setItem('moneytrack_authenticated', 'true');
                     document.body.classList.add('authenticated');
+                    
                     // Cacher l'écran statique
                     const staticLogin = document.getElementById('static-login');
                     if (staticLogin) {
                         staticLogin.style.display = 'none';
                     }
-                    // Charger les données après authentification
-                    this.loadData();
-                    this.filterTransactions();
+                    
+                    // Forcer Vue à mettre à jour l'affichage
+                    this.$nextTick(() => {
+                        console.log('✅ Authentification réussie, isAuthenticated:', this.isAuthenticated);
+                        // Charger les données après authentification
+                        this.loadData();
+                        this.filterTransactions();
+                    });
                 } else {
                     this.passwordError = 'Mot de passe incorrect.';
                     this.passwordInput = '';
+                    console.log('❌ Mot de passe incorrect');
                 }
             } catch (e) {
                 console.error('❌ Erreur lors de la vérification du mot de passe:', e);
@@ -171,8 +195,12 @@ createApp({
                 if (staticLogin) {
                     staticLogin.style.display = 'none';
                 }
-                this.loadData();
-                this.filterTransactions();
+                // Forcer Vue à mettre à jour l'affichage
+                this.$nextTick(() => {
+                    console.log('✅ Session restaurée, isAuthenticated:', this.isAuthenticated);
+                    this.loadData();
+                    this.filterTransactions();
+                });
             }
         },
         logout() {
@@ -656,6 +684,7 @@ createApp({
         // Sauvegarde/Chargement
         async saveData() {
             const data = {
+                password: this.storedPassword,
                 comptes: this.comptes,
                 personnes: this.personnes,
                 transactions: this.transactions
@@ -714,6 +743,7 @@ createApp({
                 if (snapshot.exists()) {
                     const data = snapshot.val();
                     console.log('✅ Données chargées depuis Firebase Realtime Database:', {
+                        password: data.password ? 'présent' : 'absent',
                         comptes: data.comptes?.length || 0,
                         personnes: data.personnes?.length || 0,
                         transactions: data.transactions?.length || 0
@@ -733,6 +763,14 @@ createApp({
                         this.processLoadedData(data);
                     }
                 });
+                
+                // Écouter aussi les changements du mot de passe séparément
+                db.ref('moneytrack/password').on('value', (snapshot) => {
+                    if (snapshot.exists()) {
+                        this.storedPassword = snapshot.val();
+                        console.log('🔄 Mot de passe mis à jour en temps réel');
+                    }
+                });
             } catch (e) {
                 console.error('❌ Erreur Firebase Realtime Database:', e);
                 console.error('Détails:', e.message, e.code);
@@ -748,6 +786,10 @@ createApp({
             }
         },
         processLoadedData(data) {
+            // Charger le mot de passe depuis les données
+            if (data.password) {
+                this.storedPassword = data.password;
+            }
             this.comptes = data.comptes || [];
             this.personnes = data.personnes || [];
             this.transactions = data.transactions || [];
@@ -810,6 +852,7 @@ createApp({
         },
         exportData() {
             const data = {
+                password: this.storedPassword,
                 comptes: this.comptes,
                 personnes: this.personnes,
                 transactions: this.transactions
@@ -832,6 +875,10 @@ createApp({
             reader.onload = async (e) => {
                 try {
                     const data = JSON.parse(e.target.result);
+                    // Charger le mot de passe depuis le JSON importé
+                    if (data.password) {
+                        this.storedPassword = data.password;
+                    }
                     this.comptes = data.comptes || [];
                     this.personnes = data.personnes || [];
                     this.transactions = data.transactions || [];
@@ -902,7 +949,7 @@ setTimeout(() => {
                     return;
                 }
                 
-                const snapshot = await db.ref('password').once('value');
+                const snapshot = await db.ref('moneytrack/password').once('value');
                 const storedPassword = snapshot.val();
                 
                 if (password === storedPassword) {

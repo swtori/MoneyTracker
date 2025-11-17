@@ -16,7 +16,13 @@
         }
         /* Cacher l'écran statique une fois Vue chargé et utilisateur authentifié */
         #app.vue-loaded .login-screen-static,
-        body.authenticated .login-screen-static {
+        body.authenticated .login-screen-static,
+        body.authenticated #static-login {
+            display: none !important;
+        }
+        
+        /* S'assurer que l'application principale est visible quand authentifiée */
+        body.authenticated #app > .login-screen {
             display: none !important;
         }
     </style>
@@ -51,7 +57,7 @@
 
     <div id="app">
         <!-- Écran de connexion - affiché par défaut, caché par Vue si authentifié -->
-        <div class="login-screen" v-show="!isAuthenticated" v-cloak style="display: none;">
+        <div class="login-screen" v-show="!isAuthenticated" v-cloak>
             <div class="login-container">
                 <h1>💰 MoneyTrack</h1>
                 <h2>Connexion</h2>
