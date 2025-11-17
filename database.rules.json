@@ -3,7 +3,10 @@
     "moneytrack": {
       ".read": true,
       ".write": true
+    },
+    "password": {
+      ".read": true,
+      ".write": true
     }
   }
 }
-

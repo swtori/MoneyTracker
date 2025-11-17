@@ -13,17 +13,47 @@
 </head>
 <body>
     <div id="app">
-        <header>
-            <h1>💰 MoneyTrack</h1>
-            <div class="header-actions">
-                <button @click="exportData" class="btn btn-secondary">📥 Exporter JSON</button>
-                <label for="file-input" class="btn btn-secondary">📤 Importer JSON
-                    <input type="file" id="file-input" accept=".json" @change="importData" style="display: none;">
-                </label>
+        <!-- Écran de connexion -->
+        <div v-if="!isAuthenticated" class="login-screen">
+            <div class="login-container">
+                <h1>💰 MoneyTrack</h1>
+                <h2>Connexion</h2>
+                <form @submit.prevent="checkPassword" class="login-form">
+                    <div class="form-group">
+                        <label for="password-input">Mot de passe</label>
+                        <input 
+                            type="password" 
+                            id="password-input"
+                            v-model="passwordInput" 
+                            required 
+                            class="input"
+                            placeholder="Entrez le mot de passe"
+                            autofocus>
+                    </div>
+                    <div v-if="passwordError" class="error-message">
+                        {{ passwordError }}
+                    </div>
+                    <button type="submit" class="btn btn-primary" :disabled="isCheckingPassword">
+                        {{ isCheckingPassword ? 'Vérification...' : 'Se connecter' }}
+                    </button>
+                </form>
             </div>
-        </header>
+        </div>
 
-        <div class="dashboard">
+        <!-- Application principale (affichée seulement si authentifié) -->
+        <template v-if="isAuthenticated">
+            <header>
+                <h1>💰 MoneyTrack</h1>
+                <div class="header-actions">
+                    <button @click="logout" class="btn btn-secondary">🚪 Déconnexion</button>
+                    <button @click="exportData" class="btn btn-secondary">📥 Exporter JSON</button>
+                    <label for="file-input" class="btn btn-secondary">📤 Importer JSON
+                        <input type="file" id="file-input" accept=".json" @change="importData" style="display: none;">
+                    </label>
+                </div>
+            </header>
+
+            <div class="dashboard">
             <!-- Solde total -->
             <div class="summary-card">
                 <h2>Solde Total</h2>
@@ -359,6 +389,7 @@
                 </div>
             </div>
         </div>
+        </template>
 
     </div>
 

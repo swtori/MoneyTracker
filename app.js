@@ -3,6 +3,10 @@ const { createApp } = Vue;
 createApp({
     data() {
         return {
+            isAuthenticated: false,
+            passwordInput: '',
+            passwordError: '',
+            isCheckingPassword: false,
             activeTab: 'comptes',
             tabs: [
                 { id: 'comptes', label: 'Comptes' },
@@ -91,10 +95,83 @@ createApp({
         }
     },
     mounted() {
-        this.loadData();
-        this.filterTransactions();
+        this.initializePassword();
+        this.checkStoredAuth();
     },
     methods: {
+        // Authentification
+        async initializePassword() {
+            const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+            if (!db) {
+                console.error('❌ Firebase n\'est pas disponible pour l\'authentification.');
+                return;
+            }
+
+            try {
+                // Vérifier si le mot de passe existe dans Firebase
+                const snapshot = await db.ref('password').once('value');
+                if (!snapshot.exists()) {
+                    // Initialiser le mot de passe dans Firebase
+                    const defaultPassword = 'YSO2vPKTxsiPlGcD';
+                    await db.ref('password').set(defaultPassword);
+                    console.log('✅ Mot de passe initialisé dans Firebase');
+                }
+            } catch (e) {
+                console.error('❌ Erreur lors de l\'initialisation du mot de passe:', e);
+            }
+        },
+        async checkPassword() {
+            this.passwordError = '';
+            this.isCheckingPassword = true;
+
+            const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+            if (!db) {
+                this.passwordError = 'Firebase n\'est pas disponible.';
+                this.isCheckingPassword = false;
+                return;
+            }
+
+            try {
+                const snapshot = await db.ref('password').once('value');
+                const storedPassword = snapshot.val();
+
+                if (this.passwordInput === storedPassword) {
+                    this.isAuthenticated = true;
+                    this.passwordInput = '';
+                    // Stocker l'authentification dans sessionStorage
+                    sessionStorage.setItem('moneytrack_authenticated', 'true');
+                    // Charger les données après authentification
+                    this.loadData();
+                    this.filterTransactions();
+                } else {
+                    this.passwordError = 'Mot de passe incorrect.';
+                    this.passwordInput = '';
+                }
+            } catch (e) {
+                console.error('❌ Erreur lors de la vérification du mot de passe:', e);
+                this.passwordError = 'Erreur lors de la vérification. Veuillez réessayer.';
+            } finally {
+                this.isCheckingPassword = false;
+            }
+        },
+        checkStoredAuth() {
+            // Vérifier si l'utilisateur est déjà authentifié dans cette session
+            const stored = sessionStorage.getItem('moneytrack_authenticated');
+            if (stored === 'true') {
+                this.isAuthenticated = true;
+                this.loadData();
+                this.filterTransactions();
+            }
+        },
+        logout() {
+            if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+                this.isAuthenticated = false;
+                sessionStorage.removeItem('moneytrack_authenticated');
+                this.passwordInput = '';
+                this.passwordError = '';
+            }
+        },
+
         // Gestion des comptes
         saveAccount() {
             if (this.editingAccount) {
