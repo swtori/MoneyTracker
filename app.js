@@ -140,6 +140,12 @@ createApp({
                     this.passwordInput = '';
                     // Stocker l'authentification dans sessionStorage
                     sessionStorage.setItem('moneytrack_authenticated', 'true');
+                    document.body.classList.add('authenticated');
+                    // Cacher l'écran statique
+                    const staticLogin = document.getElementById('static-login');
+                    if (staticLogin) {
+                        staticLogin.style.display = 'none';
+                    }
                     // Charger les données après authentification
                     this.loadData();
                     this.filterTransactions();
@@ -159,6 +165,12 @@ createApp({
             const stored = sessionStorage.getItem('moneytrack_authenticated');
             if (stored === 'true') {
                 this.isAuthenticated = true;
+                document.body.classList.add('authenticated');
+                // Cacher l'écran statique
+                const staticLogin = document.getElementById('static-login');
+                if (staticLogin) {
+                    staticLogin.style.display = 'none';
+                }
                 this.loadData();
                 this.filterTransactions();
             }
@@ -845,4 +857,88 @@ createApp({
         }
     }
 }).mount('#app');
+
+// Marquer que Vue est chargé pour cacher l'écran statique
+setTimeout(() => {
+    const appElement = document.getElementById('app');
+    if (appElement) {
+        appElement.classList.add('vue-loaded');
+    }
+}, 100);
+
+// Gérer le formulaire statique de secours
+(function() {
+    function initStaticLogin() {
+        const staticForm = document.getElementById('static-login-form');
+        const staticPasswordInput = document.getElementById('static-password-input');
+        const staticError = document.getElementById('static-password-error');
+        const staticLogin = document.getElementById('static-login');
+        
+        if (!staticForm) {
+            setTimeout(initStaticLogin, 100);
+            return;
+        }
+        
+        staticForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const password = staticPasswordInput.value;
+            
+            if (!password) {
+                if (staticError) {
+                    staticError.textContent = 'Veuillez entrer un mot de passe.';
+                    staticError.style.display = 'block';
+                }
+                return;
+            }
+            
+            // Vérifier directement avec Firebase
+            try {
+                const db = typeof window !== 'undefined' ? window.database : (typeof database !== 'undefined' ? database : null);
+                if (!db) {
+                    if (staticError) {
+                        staticError.textContent = 'Firebase n\'est pas disponible. Veuillez attendre le chargement.';
+                        staticError.style.display = 'block';
+                    }
+                    return;
+                }
+                
+                const snapshot = await db.ref('password').once('value');
+                const storedPassword = snapshot.val();
+                
+                if (password === storedPassword) {
+                    // Authentification réussie
+                    sessionStorage.setItem('moneytrack_authenticated', 'true');
+                    
+                    // Cacher l'écran statique
+                    if (staticLogin) {
+                        staticLogin.style.display = 'none';
+                    }
+                    
+                    // Recharger la page pour que Vue prenne en compte l'authentification
+                    window.location.reload();
+                } else {
+                    if (staticError) {
+                        staticError.textContent = 'Mot de passe incorrect.';
+                        staticError.style.display = 'block';
+                    }
+                    if (staticPasswordInput) {
+                        staticPasswordInput.value = '';
+                    }
+                }
+            } catch (error) {
+                console.error('Erreur lors de la vérification:', error);
+                if (staticError) {
+                    staticError.textContent = 'Erreur lors de la vérification. Veuillez réessayer.';
+                    staticError.style.display = 'block';
+                }
+            }
+        });
+    }
+    
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initStaticLogin);
+    } else {
+        initStaticLogin();
+    }
+})();
 

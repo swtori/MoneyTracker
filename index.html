@@ -7,11 +7,17 @@
     <link rel="stylesheet" href="styles.css">
     <style>
         /* Afficher l'écran de connexion par défaut avant que Vue ne charge */
-        #app > .login-screen {
+        #app > .login-screen,
+        #app > .login-screen-static {
             display: flex !important;
         }
         [v-cloak] {
             display: block !important;
+        }
+        /* Cacher l'écran statique une fois Vue chargé et utilisateur authentifié */
+        #app.vue-loaded .login-screen-static,
+        body.authenticated .login-screen-static {
+            display: none !important;
         }
     </style>
     <!-- Firebase SDK - Realtime Database -->
@@ -21,9 +27,31 @@
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body>
+    <!-- Écran de connexion statique (fallback si Vue ne charge pas) -->
+    <div class="login-screen login-screen-static" id="static-login">
+        <div class="login-container">
+            <h1>💰 MoneyTrack</h1>
+            <h2>Connexion</h2>
+            <form id="static-login-form" class="login-form">
+                <div class="form-group">
+                    <label for="static-password-input">Mot de passe</label>
+                    <input 
+                        type="password" 
+                        id="static-password-input"
+                        required 
+                        class="input"
+                        placeholder="Entrez le mot de passe"
+                        autofocus>
+                </div>
+                <div id="static-password-error" class="error-message" style="display: none;"></div>
+                <button type="submit" class="btn btn-primary">Se connecter</button>
+            </form>
+        </div>
+    </div>
+
     <div id="app">
         <!-- Écran de connexion - affiché par défaut, caché par Vue si authentifié -->
-        <div class="login-screen" v-show="!isAuthenticated" v-cloak>
+        <div class="login-screen" v-show="!isAuthenticated" v-cloak style="display: none;">
             <div class="login-container">
                 <h1>💰 MoneyTrack</h1>
                 <h2>Connexion</h2>
